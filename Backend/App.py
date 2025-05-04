@@ -10,10 +10,10 @@ pymysql.install_as_MySQLdb()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-DB_USER = os.environ.get('DB_USER', 'u101366067_filmder')
-DB_PASS = os.environ.get('DB_PASS', 'pX07~Y1qYc#')
-DB_HOST = os.environ.get('DB_HOST', 'srv1383.hstgr.io')
-DB_NAME = os.environ.get('DB_NAME', 'u101366067_filmder')
+DB_USER = os.environ.get('DB_USER', 'xxx')
+DB_PASS = os.environ.get('DB_PASS', 'xxx')
+DB_HOST = os.environ.get('DB_HOST', 'xxx')
+DB_NAME = os.environ.get('DB_NAME', 'xxx')
 
 app.config['SQLALCHEMY_DATABASE_URI'] = (
     f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}"
