@@ -27,8 +27,29 @@ import Alert from '@mui/joy/Alert';
 import Snackbar from '@mui/joy/Snackbar';
 import Chip from '@mui/joy/Chip';
 import FavoriteIcon from '@mui/icons-material/Favorite';
-
-const API_KEY = 'YOUWISH!';
+import logo2 from './logo2.png';
+import zagrajsolo from './zagrajsolo.png';
+import zagrajzpartnerem from './zagrajzpartnerem.png';
+import przejdzdobazy from './przejdzdobazy.png';
+import InfoOutlined from '@mui/icons-material/InfoOutlined';
+import YouTubeIcon from './youtube.png';
+import WhatsAppIcon from './whatsapp.png';
+import InstagramIcon from './instagram.png';
+import FacebookIcon from './facebook.png';
+import LinkedInIcon from './linkedin.png';
+import EmojiObjectsIcon from './behance.png'
+import profileicon from './profileicon.png'
+import film from './Film.png'
+import info from './Info.png'
+import ThumbsDown from './Thumbs down.png'
+import ThumbsUp from './Thumbs UP.png'
+import Heart from './Heart.png'
+import Damian from './damian.jpg'
+import Adrian from './adrian.jpg'
+import Adrianna from './Ada.jpg'
+import Wiktoria from './Ada.jpg'
+import Sebastian from './Ada.jpg'
+const API_KEY = 'f933cff296149f7459a50c0384cada32';
 const API_BASE = 'https://filmder-9f342e7129fc.herokuapp.com'
 const PROVIDERS = [
   { id: 8, name: 'Netflix' },
@@ -174,7 +195,7 @@ function FavoritesCarousel({ favorites }) {
       >
         {favorites.map((f, i) => (
           <Card
-            key={i}
+          key={f.id}
             sx={{
               flex: { xs: '0 0 80%', md: '0 0 auto' },
               scrollSnapAlign: 'center',
@@ -214,6 +235,7 @@ function FavoritesCarousel({ favorites }) {
 }
 
 export default function App() {
+  const getRandomPage = () => Math.floor(Math.random() * 50) + 1;
   const [screen, setScreen] = useState('home');
   const [genres, setGenres] = useState({});
   const [selectedGenres, setSelectedGenres] = useState([]);
@@ -228,7 +250,7 @@ export default function App() {
   const [details, setDetails] = useState(null);
   const [providerLinks, setProviderLinks] = useState({});
   const [noResults, setNoResults] = useState(false);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => getRandomPage());
 
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -239,6 +261,23 @@ export default function App() {
 const [loginPassword, setLoginPassword] = useState('');
 
 const [likedDetails, setLikedDetails] = useState([]);
+
+
+const resetGame = () => {
+  setSelectedGenres([]);
+  setSelectedProviders([]);
+  setMovies([]);
+  setIndex(0);
+  setFavorites([]);
+  setFinals([]);
+  setTrailer(null);
+  setUseTrailer(false);
+  setModalInfo(false);
+  setDetails(null);
+  setProviderLinks({});
+  setNoResults(false);
+  setPage(getRandomPage);
+};
 
 const handleLogin = async e => {
   e.preventDefault();
@@ -274,34 +313,62 @@ const [snack, setSnack] = useState({ open: false, message: '', variant: 'solid' 
 const [anchor, setAnchor] = useState(null);
 
 
+const fetchLikes = async (userId) => {
+  try {
+    const res = await fetch(`${API_BASE}/user/${userId}/likes`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const likes = Array.isArray(data)
+      ? data
+      : Array.isArray(data.likedMovies)
+        ? data.likedMovies
+        : [];
+    setUser(u => ({ ...u, likedMovies: likes }));
+  } catch (err) {
+    console.error('Błąd pobierania polubień:', err);
+  }
+};
+
 const handleRegister = async (e) => {
   e.preventDefault();
-  if (regPassword !== regConfirm) {
+
+  const formData = new FormData(e.currentTarget);
+  const name = formData.get('name');
+  const email = formData.get('email');
+  const password = formData.get('password');
+  const confirm = formData.get('confirm');
+
+  if (password !== confirm) {
     setSnack({ open: true, message: 'Hasła nie są zgodne', variant: 'danger' });
     return;
   }
+
+  setSnack({ open: true, message: 'Tworzę konto…', variant: 'info' });
+
   try {
     const res = await fetch(`${API_BASE}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: regName,
-        email: regEmail,
-        password: regPassword,
+        name,
+        email,
+        password,
         likedMovies: favorites.map(f => f.id),
       }),
     });
     const data = await res.json();
+
     if (!res.ok) {
       setSnack({ open: true, message: data.error || 'Błąd rejestracji', variant: 'danger' });
       return;
     }
-    setUser({ id: data.userId, name: regName, email: regEmail, likedMovies: [...favorites] });
+
+    setUser({ id: data.userId, name, email, likedMovies: favorites.map(f => ({ id: f.id, title: f.title, poster_path: f.poster_path })) });
     setSnack({ open: true, message: 'Rejestracja udana! Jesteś zalogowany.', variant: 'primary' });
     setScreen('home');
-    setRegName(''); setRegEmail(''); setRegPassword(''); setRegConfirm('');
-  } catch {
-    setSnack({ open: true, message: 'Błąd sieci. Spróbuj później.', variant: 'danger' });
+  } catch (err) {
+    console.error('Błąd sieci przy rejestracji:', err);
+    setSnack({ open: true, message: 'Błąd sieci. Spróbuj ponownie.', variant: 'danger' });
   }
 };
 
@@ -316,6 +383,30 @@ const handleRegister = async (e) => {
 
   const current = movies[index] || null;
 
+
+  useEffect(() => {
+
+    window.history.replaceState({ screen }, '');
+  }, []); 
+
+  useEffect(() => {
+    window.history.pushState({ screen }, '', `#${screen}`);
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+  }, [screen]);
+
+  useEffect(() => {
+    const handlePopState = (event) => {
+      const state = event.state;
+      if (state && state.screen) {
+        setScreen(state.screen);
+      } else {
+
+        setScreen('home');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('filmderUser');
@@ -341,6 +432,12 @@ const handleRegister = async (e) => {
         setGenres(map);
       });
   }, []);
+
+  useEffect(() => {
+    if (screen === 'profile' && user) {
+      fetchLikes(user.id);
+    }
+  }, [screen]);
 
   useEffect(() => {
     if (screen !== 'game') return;
@@ -499,29 +596,11 @@ const handleRegister = async (e) => {
   
   const handleUnlike = async (movieId) => {
     try {
-
-      const url = `${API_BASE}/user/${user.id}/likes/${movieId}`;
-  
-      const res = await fetch(url, {
+      const res = await fetch(`${API_BASE}/user/${user.id}/likes/${movieId}`, {
         method: 'DELETE',
       });
-  
-      if (!res.ok) {
-        const text = await res.text();
-        console.error('Usuń like niepowodzenie:', res.status, text);
-        throw new Error(`HTTP ${res.status}`);
-      }
-  
-      setLikedDetails(details =>
-        details.filter(m => m.id !== movieId)
-      );
-      setUser(u => ({
-        ...u,
-        likedMovies: u.likedMovies.filter(lm => {
-          const id = typeof lm === 'object' ? lm.id : lm;
-          return id !== movieId;
-        })
-      }));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await fetchLikes(user.id);
     } catch (err) {
       console.error('Błąd usuwania lajka:', err);
       setSnack({ open: true, message: 'Nie udało się usunąć filmu', variant: 'danger' });
@@ -539,40 +618,18 @@ const handleRegister = async (e) => {
 
   const renderGenres = ids => ids.map(id => genres[id]).join(', ');
 
-  const nextMovie = async (liked) => {
+  const nextMovie = (liked) => {
     const newFavs = liked ? [...favorites, current] : favorites;
     setFavorites(newFavs);
-  
-    if (liked && user) {
-      try {
-        const res = await fetch(
-          `${API_BASE}/user/${user.id}/likes`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ movieId: current.id }),
-          }
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setUser(u => ({
-          ...u,
-          likedMovies: [
-            ...u.likedMovies,
-            { id: current.id, title: current.title, poster_path: current.poster_path }
-          ]
-        }));
-      } catch (err) {
-        console.error('Błąd zapisu lajka:', err);
-      }
-    }
-  
+
     if (index + 1 >= movies.length) {
-      const nextPage = Math.floor(Math.random() * 50) + 1;
+      const nextPage = Math.floor(Math.random() * 1000) + 1;
       setPage(nextPage);
     } else {
       setIndex(i => i + 1);
     }
   
+
     if (newFavs.length >= 5) {
       const count = {};
       newFavs.forEach(f =>
@@ -600,13 +657,31 @@ const handleRegister = async (e) => {
   };
   
   
+  
 
 
   const openInfo = async () => {
-    const res = await fetch(`https://api.themoviedb.org/3/movie/${current.id}?api_key=${API_KEY}&language=pl-PL`);
-    const deta = await res.json();
-    setDetails(deta);
-    setModalInfo(true);
+    if (!user) {
+
+      setSnack({ open: true, message: 'Zaloguj się, aby dodać do ulubionych', variant: 'warning' });
+      return;
+    }
+  
+    try {
+      const res = await fetch(`${API_BASE}/user/${user.id}/likes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ movieId: current.id }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  
+      await fetchLikes(user.id);
+  
+      setSnack({ open: true, message: 'Dodano do ulubionych!', variant: 'primary' });
+    } catch (err) {
+      console.error('Błąd zapisu ulubionego:', err);
+      setSnack({ open: true, message: 'Nie udało się dodać do ulubionych', variant: 'danger' });
+    }
   };
 
 
@@ -633,31 +708,121 @@ const handleRegister = async (e) => {
         p: 0,
       }}
     >
-        <Box sx={{ position: 'sticky', top: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10 }}>
-        <Typography
-    level="h6"
-    component="button"
-    onClick={() => window.location.reload()}
+<Box
+  component="section"
+  sx={{
+    display: 'grid',
+    gridTemplateColumns: { xs: '1fr', md: 'auto 1fr auto' },
+    alignItems: 'center',
+    gap: 2,
+    px: { xs: 2, md: 4 },
+    py: { xs: 4, md: 8 },
+    color: 'white',
+  }}
+>
+
+  <Box
+  component="img"
+  src={logo2}
+  alt="Filmder"
+  onClick={() => setScreen('home')}
+  sx={{
+    width: { xs: 60, sm: 80, md: 100 },
+    height: 'auto',
+    justifySelf: { xs: 'center', md: 'start' },
+    cursor: 'pointer',          
+    userSelect: 'none',         
+  }}
+/>
+
+
+  <Box sx={{ textAlign: 'center', px: { xs: 0, md: 2 } }}>
+    <Typography
+      level="h1"
+      component="h1"
+      sx={{
+        fontSize: { xs: '2rem', sm: '3rem', md: '4rem' },
+        fontWeight: 'bold',
+        lineHeight: 1.1,
+      }}
+    >
+      Filmder
+    </Typography>
+    {screen === 'home' && (
+  <Typography
+    level="body1"
     sx={{
-      color: 'white',
-      fontWeight: 'bold',
-      cursor: 'pointer',
-      background: 'none',
-      border: 'none',
-      p: 0,
+      mt: 1,
+      fontSize: { xs: '0.9rem', sm: '1.1rem' },
+      maxWidth: 600,
+      mx: 'auto',
+      color: 'rgba(255,255,255,0.8)',
     }}
   >
-    Filmder
+    Nie wiesz, co obejrzeć? Filmder to aplikacja, która pomoże Ci znaleźć idealny film na każdy wieczór!
+    Wystarczy, że podasz swoje preferencje filmowe, a my zaproponujemy produkcje dopasowane do Twojego gustu.
   </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-          <IconButton onClick={() => user && setScreen('profile')}>
-  <AccountCircleIcon sx={{ color: 'white' }} />
-</IconButton>
+)}
+  </Box>
 
-            <IconButton><MovieIcon sx={{ color: 'white' }} /></IconButton>
-            <IconButton onClick={() => setScreen('setup')}><SettingsIcon sx={{ color: 'white' }} /></IconButton>
-          </Box>
-        </Box>
+  {/* → PRAWY BLOK IKON */}
+  <Box
+  sx={{
+    display: 'flex',
+    gap: 1,
+    justifySelf: { xs: 'center', md: 'end' },
+  }}
+>
+  {[
+    {
+      onClick: () =>
+        user
+          ? setScreen('profile')
+          : setScreen('register'), 
+      src: profileicon,
+      alt: 'Profil',
+    },
+    {
+      onClick: () => setScreen('game'),
+      src: film,
+      alt: 'Tryb gry',
+    },
+    {
+      onClick: () => setScreen('info'),
+      src: info,
+      alt: 'Informacje',
+    },
+  ].map(({ onClick, src, alt }) => (
+    <IconButton
+      key={alt}
+      onClick={onClick}
+      sx={{
+        p: 0.5,
+        transition: 'transform 0.2s',
+        '&:hover': {
+          transform: 'scale(1.2)',
+        },
+        
+        '&:hover img': {
+          filter: 'brightness(0)',
+        },
+      }}
+    >
+      <Box
+        component="img"
+        src={src}
+        alt={alt}
+        sx={{
+          width: 28,
+          height: 28,
+          transition: 'filter 0.2s',
+        }}
+      />
+    </IconButton>
+  ))}
+</Box>
+
+</Box>
 
 
         {screen === 'profile' && (
@@ -715,219 +880,415 @@ const handleRegister = async (e) => {
 
 
 {screen === 'home' && (
-  <Box sx={{ textAlign: 'center', mt: 8, px: 2 }}>
-    {user ? (
-      <>
-        <Typography level="h2" sx={{ fontSize: '2.5rem', fontWeight: 'bold', mb: 2 }}>
-          Cześć, {user.name.split(' ')[0]}!
+  <Box sx={{ textAlign: 'center', px: 2, py: 6 }}>
+    <Typography
+      level="h2"
+      sx={{ fontSize: { xs: '2rem', md: '2.5rem' }, fontWeight: 'bold', mb: 4 }}
+    >
+      Wybierz jeden z trybów
+    </Typography>
+
+    <Box
+      sx={{
+        display: 'grid',
+        gap: 4,
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: '1fr 1fr',
+          md: 'repeat(3,1fr)',
+        },
+      }}
+    >
+      {[
+        {
+          title: 'Zagraj Solo',
+          text: 'Przesuwaj filmy w lewo lub w prawo – tak jak lubisz. Na podstawie Twoich wyborów Filmder dobierze idealną propozycję na wieczór.',
+          img: zagrajsolo,
+          onClick: () => {
+            resetGame();
+            getRandomPage();
+            setScreen('setup');
+          },
+          enabled: true,
+        },
+        {
+          title: 'Zagraj z partnerem',
+          text: 'Nie możecie się dogadać, co obejrzeć? Wspólnie z partnerem porównajcie gusta, a Filmder znajdzie złoty środek.',
+          img: zagrajzpartnerem,
+          onClick: () => {},     
+          enabled: false,
+        },
+        {
+          title: 'Przejdź do bazy',
+          text: 'Przejrzyj naszą filmową bazę – znajdziesz tu opisy, gatunki i rekomendacje dopasowane do różnych gustów.',
+          img: przejdzdobazy,
+          onClick: () => {},     
+          enabled: false,
+        },
+      ].map(({ title, text, img, onClick, enabled }) => (
+        <Card
+          key={title}
+          variant="plain"
+          onClick={enabled ? onClick : undefined}
+          sx={{
+            p: 2,
+            bgcolor: enabled ? 'rgba(28,28,30,0.8)' : 'rgba(50,50,50,0.6)',
+            borderRadius: 2,
+            cursor: enabled ? 'pointer' : 'not-allowed',
+            opacity: enabled ? 1 : 0.5,
+            pointerEvents: enabled ? 'auto' : 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            boxShadow: {
+              xs: '0px 2px 8px rgba(0,0,0,0.4)',
+              md: '0px 4px 16px rgba(0,0,0,0.6)',
+            },
+            '&:hover': enabled
+              ? {
+                  transform: 'translateY(-4px)',
+                  boxShadow: {
+                    xs: '0px 4px 12px rgba(0,0,0,0.6)',
+                    md: '0px 6px 20px rgba(0,0,0,0.8)',
+                  },
+                }
+              : {},
+          }}
+        >
+          <Box>
+            <Typography level="h4" sx={{ mb: 1 }}>
+              {title}
+            </Typography>
+            <Typography level="body2" sx={{ color: 'rgba(255,255,255,0.8)', mb: 2 }}>
+              {text}
+            </Typography>
+          </Box>
+          <Box
+            component="img"
+            src={img}
+            alt={title}
+            sx={{
+              width: '100%',
+              height: 'auto',
+              maxHeight: { xs: 140, sm: 160 },
+              objectFit: 'contain',
+              borderRadius: 1,
+              mt: 2,
+            }}
+          />
+        </Card>
+      ))}
+    </Box>
+  </Box>
+)}
+
+
+
+
+{(screen === 'login' || screen === 'register') && (
+  <Box sx={{ px: { xs: 2, md: 6 }, py: { xs: 4, md: 8 } }}>
+    {/* Karty obok siebie */}
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' },
+        gap: 4,
+        mb: 6,
+      }}
+    >
+      {/* 1) Logowanie */}
+      <Card
+        variant="plain"
+        sx={{
+          p: 4,
+          bgcolor: '#1c1c1e',
+          borderRadius: 2,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.8)',
+        }}
+      >
+        <Typography level="h4" sx={{ color: 'white', mb: 2, textAlign: 'center' }}>
+          Logowanie
         </Typography>
-        <Typography level="body1" sx={{ mb: 4, color: 'rgba(255,255,255,0.8)' }}>
-          Witaj w Filmder — Twojej spersonalizowanej strefie filmowej.
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-          <Button
-            variant="solid"
-            size="lg"
-            onClick={() => setScreen('profile')}
-          >
-            Mój profil
-          </Button>
-          <Button
-            variant="outlined"
-            size="lg"
-            onClick={() => setScreen('setup')}
-          >
-            Zagraj Solo
-          </Button>
-        </Box>
-      </>
-    ) : (
-      <>
-        <Typography level="h1" sx={{ fontSize: '3rem', fontWeight: 'bold', mb: 1 }}>
-          Filmder
-        </Typography>
-        <Typography level="h2" sx={{ fontSize: '1.5rem', mb: 3, color: 'rgba(255,255,255,0.8)' }}>
-          Odkryj spersonalizowane rekomendacje filmowe
-        </Typography>
-        <Typography level="body1" sx={{ mb: 4, maxWidth: 600, mx: 'auto', color: 'rgba(255,255,255,0.9)' }}>
-          Filmder to inteligentna aplikacja, która za pomocą prostego quizu 
-          i Twoich ocen filmów tworzy listę propozycji szytą na miarę. 
-          Wybierz ulubione gatunki, zaznacz platformy streamingowe i zacznij przygodę!
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-          <Button
-            variant="solid"
-            size="lg"
-            onClick={() => setScreen('setup')}
-          >
-            Zagraj Solo
-          </Button>
-          <Button
-            variant="outlined"
-            size="lg"
-            onClick={() => setScreen('register')}
-          >
-            Zarejestruj się
-          </Button>
-          <Button
-            variant="outlined"
-            size="lg"
-            onClick={() => setScreen('login')}
-          >
+        <Box
+          component="form"
+          onSubmit={handleLogin}
+          sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+        >
+          <Input
+            required
+            name="email"
+            type="email"
+            placeholder="Email"
+            value={loginEmail}
+            onChange={e => setLoginEmail(e.target.value)}
+            sx={{ bgcolor: 'white' }}
+          />
+          <Input
+            required
+            name="password"
+            type="password"
+            placeholder="Hasło"
+            value={loginPassword}
+            onChange={e => setLoginPassword(e.target.value)}
+            sx={{ bgcolor: 'white' }}
+          />
+          <Button type="submit" variant="solid" sx={{ mt: 1 }}>
             Zaloguj się
           </Button>
         </Box>
-      </>
-    )}
-  </Box>
-)}
+      </Card>
 
+      {/* 2) Rejestracja */}
+      <Card
+        variant="plain"
+        sx={{
+          p: 4,
+          bgcolor: '#1c1c1e',
+          borderRadius: 2,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.8)',
+        }}
+      >
+        <Typography level="h4" sx={{ color: 'white', mb: 2, textAlign: 'center' }}>
+          Załóż konto
+        </Typography>
+        <Box
+          component="form"
+          onSubmit={handleRegister}
+          sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+        >
+          <Input
+            required
+            name="name"
+            placeholder="Nazwa użytkownika"
+            value={regName}
+            onChange={e => setRegName(e.target.value)}
+            sx={{ bgcolor: 'white' }}
+          />
+          <Input
+            required
+            name="email"
+            type="email"
+            placeholder="E-mail"
+            value={regEmail}
+            onChange={e => setRegEmail(e.target.value)}
+            sx={{ bgcolor: 'white' }}
+          />
+          <Input
+            required
+            name="password"
+            type="password"
+            placeholder="Hasło"
+            value={regPassword}
+            onChange={e => setRegPassword(e.target.value)}
+            sx={{ bgcolor: 'white' }}
+          />
+          <Input
+            required
+            name="confirm"
+            type="password"
+            placeholder="Potwierdź hasło"
+            value={regConfirm}
+            onChange={e => setRegConfirm(e.target.value)}
+            sx={{ bgcolor: 'white' }}
+          />
+          <Button type="submit" variant="solid" sx={{ mt: 1 }}>
+            Zarejestruj się
+          </Button>
+        </Box>
+      </Card>
 
-{(screen === 'register' || screen === 'login') && (
-  <Box sx={{ maxWidth: 400, mx: 'auto', mt: 8, px: 2 }}>
-    <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mb: 3 }}>
-      <Button
-        variant={screen === 'register' ? 'solid' : 'outlined'}
-        onClick={() => setScreen('register')}
+      {/* 3) Plusy konta */}
+      <Card
+        variant="plain"
+        sx={{
+          p: 4,
+          bgcolor: '#1c1c1e',
+          borderRadius: 2,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.8)',
+        }}
       >
-        Rejestracja
-      </Button>
-      <Button
-        variant={screen === 'login' ? 'solid' : 'outlined'}
-        onClick={() => setScreen('login')}
-      >
-        Logowanie
-      </Button>
+        <Typography level="h4" sx={{ color: 'white', mb: 2, textAlign: 'center' }}>
+          Plusy konta
+        </Typography>
+        <Box component="ul" sx={{ pl: 2, color: 'rgba(255,255,255,0.8)', '& li': { mb: 1 } }}>
+          <li><strong>Spersonalizowane rekomendacje:</strong> Twoje wybory mają znaczenie – im więcej swipe’ów, tym lepiej dopasowane filmy.</li>
+          <li><strong>Historia swipe’ów:</strong> Wróć do ulubionych filmów i sprawdź, co już widziałeś lub odrzuciłeś.</li>
+          <li><strong>Tryb dla par:</strong> Szukaj wspólnego filmu razem z drugą osobą.</li>
+          <li><strong>Lista „Do obejrzenia”:</strong> Zapisuj interesujące filmy na później.</li>
+          <li><strong>Dostęp na wielu urządzeniach:</strong> Rozpocznij na telefonie, dokończ na komputerze.</li>
+        </Box>
+      </Card>
     </Box>
 
+    {/* Sekcja wideo */}
     <Box
-      component="form"
-      onSubmit={screen === 'register' ? handleRegister : handleLogin}
-      sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+      sx={{
+        position: 'relative',
+        pt: '56.25%',
+        borderRadius: 2,
+        overflow: 'hidden',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.8)',
+      }}
     >
-      {screen === 'register' && (
-        <>
-          <FormControl>
-            <FormLabel>Imię i nazwisko</FormLabel>
-            <Input
-              required
-              placeholder="Jan Kowalski"
-              value={regName}
-              onChange={e => setRegName(e.target.value)}
-            />
-          </FormControl>
-          <FormControl>
-            <FormLabel>Email</FormLabel>
-            <Input
-              required
-              type="email"
-              placeholder="email@przyklad.com"
-              value={regEmail}
-              onChange={e => setRegEmail(e.target.value)}
-            />
-          </FormControl>
-          <FormControl>
-            <FormLabel>Hasło</FormLabel>
-            <Input
-              required
-              type="password"
-              value={regPassword}
-              onChange={e => setRegPassword(e.target.value)}
-            />
-          </FormControl>
-          <FormControl>
-            <FormLabel>Potwierdź hasło</FormLabel>
-            <Input
-              required
-              type="password"
-              value={regConfirm}
-              onChange={e => setRegConfirm(e.target.value)}
-            />
-          </FormControl>
-        </>
-      )}
-
-      {screen === 'login' && (
-        <>
-          <FormControl>
-            <FormLabel>Email</FormLabel>
-            <Input
-              required
-              type="email"
-              name="email"
-              placeholder="Twój email"
-              value={loginEmail}
-              onChange={e => setLoginEmail(e.target.value)}
-            />
-          </FormControl>
-          <FormControl>
-            <FormLabel>Hasło</FormLabel>
-            <Input
-              required
-              type="password"
-              name="password"
-              placeholder="Twoje hasło"
-              value={loginPassword}
-              onChange={e => setLoginPassword(e.target.value)}
-            />
-          </FormControl>
-        </>
-      )}
-
-      <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mt: 2 }}>
-        <Button type="submit" variant="solid">
-          {screen === 'register' ? 'Zarejestruj się' : 'Zaloguj się'}
-        </Button>
-        <Button variant="outlined" onClick={() => setScreen('home')}>
-          Anuluj
-        </Button>
-      </Box>
+      <iframe
+        src="https://www.youtube.com/embed/VIDEO_ID?autoplay=0"
+        title="Demo"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          border: 'none',
+        }}
+        allowFullScreen
+      />
     </Box>
   </Box>
 )}
 
 
-        {screen === 'setup' && (
-          <Box sx={{ maxWidth: 960, mx: 'auto', px: 2, py: 4 }}>
-            <Typography level="h2">Wybierz 3 ulubione gatunki</Typography>
-            <Box sx={{ position: 'relative', my: 3 }}>
-              <IconButton onClick={() => scrollGenres(-1)} sx={{ position: 'absolute', top: '50%', left: 0, transform: 'translateY(-50%)', zIndex: 1, display: 'flex' }}>
-                <ChevronLeftIcon sx={{ color: 'white' }} />
-              </IconButton>
-              <Box ref={genreRef} sx={{ display: 'flex', gap: 1, overflowX: 'auto', px: 1, flexWrap: 'nowrap', scrollSnapType: 'x mandatory', '&::-webkit-scrollbar': { display: 'none' } }}>
-                {genreList.map(([id, name]) => (
-                  <Button
-                    key={id}
-                    variant={selectedGenres.includes(+id) ? 'solid' : 'outlined'}
-                    onClick={() => setSelectedGenres(prev => prev.includes(+id) ? prev.filter(x => x !== +id) : prev.length < 3 ? [...prev, +id] : prev)}
-                    sx={{ minWidth: 120, flex: '0 0 auto', scrollSnapAlign: 'center' }}
-                  >
-                    {name}
-                  </Button>
-                ))}
-              </Box>
-              <IconButton onClick={() => scrollGenres(1)} sx={{ position: 'absolute', top: '50%', right: 0, transform: 'translateY(-50%)', zIndex: 1, display: 'flex' }}>
-                <ChevronRightIcon sx={{ color: 'white' }} />
-              </IconButton>
-            </Box>
 
-            <Typography level="h2">Platformy streamingowe</Typography>
-            <Box sx={{ bg: '#1c1c1e', p: 2, borderRadius: 2, my: 3, display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
-              {PROVIDERS.map(p => (
-                <Checkbox
-                  key={p.id}
-                  label={p.name}
-                  checked={selectedProviders.includes(p.id)}
-                  onChange={() => setSelectedProviders(prev => prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id])}
-                  sx={{ color: 'white' }}
-                />
-              ))}
-            </Box>
-            <Box sx={{ textAlign: 'center' }}>
-              <Button variant="solid" size="lg" onClick={() => setScreen('game')}>PRZEJDŹ DALEJ</Button>
-            </Box>
-          </Box>
-        )}
+
+{screen === 'setup' && (
+  <Box
+    sx={{
+      width: '100%',
+      maxWidth: { xs: '100%', md: 960 },
+      mx: 'auto',
+      px: { xs: 1, sm: 2 },
+      py: 4,
+    }}
+  >
+    <Typography sx={{textAlign: 'center'}} level="h2">Wybierz 3 ulubione gatunki filmowe</Typography>
+    <Typography
+  level="body2"
+  sx={{
+    display: { xs: 'none', md: 'block' },
+    mt: 1,
+    fontSize: { xs: '0.75rem', sm: '0.9rem' },
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+  }}
+>
+  Korzystając ze strzałek — możesz się poruszać
+</Typography>
+    <Box sx={{ position: 'relative', my: 3 }}>
+      {/* Strzałki schowane na mobile */}
+      <IconButton
+        onClick={() => scrollGenres(-1)}
+        sx={{
+          position: 'absolute',
+          top: '50%',
+          left: 0,
+          transform: 'translateY(-50%)',
+          zIndex: 1,
+          display: { xs: 'none', sm: 'flex' },
+        }}
+      >
+        <ChevronLeftIcon sx={{ color: 'white' }} />
+      </IconButton>
+
+      <Box
+        ref={genreRef}
+        sx={{
+          display: 'flex',
+          gap: 1,
+          px: 1,
+          overflowX: { xs: 'visible', sm: 'auto' },
+          flexWrap: { xs: 'wrap', sm: 'nowrap' },
+          justifyContent: { xs: 'center', sm: 'flex-start' },
+          '&::-webkit-scrollbar': { display: 'none' },
+        }}
+      >
+        {genreList.map(([id, name]) => (
+          <Button
+            key={id}
+            variant={selectedGenres.includes(+id) ? 'solid' : 'outlined'}
+            onClick={() =>
+              setSelectedGenres(prev =>
+                prev.includes(+id)
+                  ? prev.filter(x => x !== +id)
+                  : prev.length < 3
+                  ? [...prev, +id]
+                  : prev
+              )
+            }
+            sx={{
+              flex: '0 0 auto',
+              minWidth: { xs: 'auto', sm: 100 },
+              px: { xs: 1, sm: 2 },
+              whiteSpace: 'nowrap',
+              mb: { xs: 1, sm: 0 },
+            }}
+          >
+            {name}
+          </Button>
+        ))}
+      </Box>
+
+      <IconButton
+        onClick={() => scrollGenres(1)}
+        sx={{
+          position: 'absolute',
+          top: '50%',
+          right: 0,
+          transform: 'translateY(-50%)',
+          zIndex: 1,
+          display: { xs: 'none', sm: 'flex' },
+        }}
+      >
+        <ChevronRightIcon sx={{ color: 'white' }} />
+      </IconButton>
+    </Box>
+
+    <Typography sx={{textAlign:'center'}} level="h2">Wybierz dostępne dla siebie platformy streamingowe</Typography>
+    <Box
+  sx={{
+    bg: '#1c1c1e',
+    p: 2,
+    borderRadius: 2,
+    my: 3,
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+    gap: 2,
+    justifyItems: 'center',
+  }}
+>
+  {PROVIDERS.map(p => (
+    <FormControl
+      key={p.id}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1,
+        width: '100%',
+      }}
+    >
+      <Checkbox
+        label={p.name}
+        checked={selectedProviders.includes(p.id)}
+        onChange={() =>
+          setSelectedProviders(prev =>
+            prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
+          )
+        }
+        sx={{ color: 'white' }}
+      />
+    </FormControl>
+  ))}
+</Box>
+
+    <Box sx={{ textAlign: 'center' }}>
+      <Button variant="solid" size="lg" onClick={() => setScreen('game')}>
+        PRZEJDŹ DALEJ
+      </Button>
+    </Box>
+  </Box>
+)}
+
 
         {screen==='game' && (
           <Box sx={{ display:['block','flex'], gap:2, p:2, pt:{ xs:6, sm:2 } }}>
@@ -1006,33 +1367,81 @@ const handleRegister = async (e) => {
     </Typography>
 
     <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
-      <Button
-        size="lg"
-        variant="solid"
-        color="danger"
-        sx={{ width: 56, height: 56, borderRadius: '50%', fontSize: '1.5rem' }}
-        onClick={() => nextMovie(false)}
-      >
-        👎
-      </Button>
-      <Button
-        size="lg"
-        variant="solid"
-        color="primary"
-        sx={{ width: 56, height: 56, borderRadius: '50%', fontSize: '1.5rem' }}
-        onClick={() => nextMovie(true)}
-      >
-        👍
-      </Button>
-      <Button
-        size="lg"
-        variant="outlined"
-        sx={{ width: 56, height: 56, borderRadius: '50%', fontSize: '1.2rem' }}
-        onClick={openInfo}
-      >
-        ℹ️
-      </Button>
-    </Box>
+  {/* Thumbs Down */}
+  <Button
+    size="lg"
+    variant="plain"
+    sx={{
+      width: 56,
+      height: 56,
+      borderRadius: '50%',
+      p: 0,
+      bgcolor: '#4A3FFF',        
+      '&:hover': { bgcolor: '#3B30CC' },
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+    onClick={() => nextMovie(false)}
+  >
+    <Box
+      component="img"
+      src={ThumbsDown}
+      alt="Nie lubię"
+      sx={{ width: 24, height: 24 }}
+    />
+  </Button>
+
+  {/* Thumbs Up */}
+  <Button
+    size="lg"
+    variant="plain"
+    sx={{
+      width: 56,
+      height: 56,
+      borderRadius: '50%',
+      p: 0,
+      bgcolor: '#8C3FED',      
+      '&:hover': { bgcolor: '#6B2DBB' },
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+    onClick={() => nextMovie(true)}
+  >
+    <Box
+      component="img"
+      src={ThumbsUp}
+      alt="Lubię"
+      sx={{ width: 24, height: 24 }}
+    />
+  </Button>
+
+  {/* Heart */}
+  <Button
+    size="lg"
+    variant="plain"
+    sx={{
+      width: 56,
+      height: 56,
+      borderRadius: '50%',
+      p: 0,
+      bgcolor: '#B71C1C',         
+      '&:hover': { bgcolor: '#8F1717' },
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+    onClick={openInfo}
+  >
+    <Box
+      component="img"
+      src={Heart}
+      alt="Ulubione"
+      sx={{ width: 24, height: 24 }}
+    />
+  </Button>
+</Box>
   </CardContent>
 </Card>
 
@@ -1046,69 +1455,351 @@ const handleRegister = async (e) => {
           </Box>
         )}
 
-        {screen === 'final' && (
-  <Box sx={{ p: 2 }}>
-    <Typography level="h2" sx={{ textAlign: 'center', mb: 3 }}>Podsumowanie</Typography>
-    <Typography level="h4" sx={{ mb: 2 }}>Twoje typy</Typography>
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center', mb: 4 }}>
-      {favorites.map(f => (
-        <Card key={f.id} sx={{ width: 220, bg: '#1c1c1e', color: 'black' }}>
-          <Box sx={{ width: '100%', height: '30vh', overflow: 'hidden', borderRadius: 2 }}>
+{screen === 'info' && (
+  <Box
+    sx={{
+      width: '100%',
+      display: 'flex',
+      justifyContent: 'center',
+      py: 6,
+      background: 'none',
+    }}
+  >
+    <Card
+      variant="plain"
+      sx={{
+        width: { xs: '90%', md: '80%', lg: '60%' },
+        bgcolor: '#1c1c1e',
+        border: 'none',
+        borderRadius: 3,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.8)',
+        p: { xs: 3, md: 5 },
+      }}
+    >
+      {/* Nagłówek */}
+      <Typography
+        level="h2"
+        component="h2"
+        sx={{
+          fontSize: { xs: '2rem', md: '3rem' },
+          fontWeight: 'bold',
+          textAlign: 'center',
+          mb: 2,
+          color: 'white',
+        }}
+      >
+        O nas
+      </Typography>
+
+      {/* Opis projektu */}
+      <Typography
+        level="body1"
+        sx={{
+          maxWidth: 800,
+          mx: 'auto',
+          mb: 6,
+          lineHeight: 1.6,
+          color: 'rgba(255,255,255,0.8)',
+          textAlign: 'center',
+        }}
+      >
+        Filmder to projekt stworzony z miłości do kina i… ciągłego pytania „co dziś obejrzeć?”. 
+        Naszym celem było stworzenie aplikacji, która w prosty i przyjemny sposób pomoże użytkownikom 
+        znaleźć film idealnie dopasowany do ich gustu – samodzielnie lub w duecie. 
+        Łączymy intuicyjność znaną z aplikacji randkowych z inteligentnymi rekomendacjami filmowymi, 
+        by każdy mógł szybko i bez stresu trafić na coś wartego obejrzenia.
+      </Typography>
+
+      {/* Zespół */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr 1fr',
+            sm: 'repeat(3,1fr)',
+            md: 'repeat(5,1fr)',
+          },
+          gap: 4,
+          justifyItems: 'center',
+        }}
+      >
+        {[
+          { name: 'Damian Chymkowski',  roles: ['Project Manager','Backend Developer'], img: Damian },
+          { name: 'Adrian Muniak',      roles: ['Database Developer'],           img: Adrian },
+          { name: 'Wiktoria Sytniewska',roles: ['Frontend Developer','(UI/UX)'], img: Wiktoria },
+          { name: 'Adrianna Konarska',  roles: ['Copywriter'],                   img: Adrianna },
+          { name: 'Sebastian Szwajnoch',roles: ['FQA Tester'],                   img: Sebastian },
+        ].map((member, i) => (
+          <Box key={i} sx={{ textAlign: 'center', maxWidth: 200 }}>
+            <Box
+              component="img"
+              src={member.img}
+              alt={member.name}
+              sx={{
+                width: 120,
+                height: 120,
+                borderRadius: 15,
+                objectFit: 'cover',
+                mb: 2,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
+              }}
+            />
+            <Typography
+              level="h6"
+              sx={{
+                fontWeight: 'bold',
+                fontSize: '1rem',
+                mb: 0.5,
+                color: 'white',
+              }}
+            >
+              {member.name}
+            </Typography>
+            {member.roles.map((r, idx) => (
+              <Typography
+                key={idx}
+                level="body2"
+                sx={{
+                  color: idx === 0 ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.7)',
+                  fontStyle: idx === 0 ? 'normal' : 'italic',
+                  mb: idx === member.roles.length - 1 ? 0 : 0.5,
+                }}
+              >
+                {r}
+              </Typography>
+            ))}
+          </Box>
+        ))}
+      </Box>
+    </Card>
+  </Box>
+)}
+
+{screen === 'final' && (
+  <Box sx={{ p: 4 }}>
+    {/* Nagłówek */}
+    <Typography level="h2" sx={{ textAlign: 'center', mb: 4, color: 'white' }}>
+      Podsumowanie
+    </Typography>
+
+    {/* Sekcja z rekomendacjami */}
+    <Typography level="h4" sx={{ mb: 2, color: 'white', textAlign:"center" }}>
+      Propozycje na dziś!
+    </Typography>
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 3,
+        justifyContent: 'center',
+        mb: 4,
+      }}
+    >
+      {finals.map(f => (
+        <Card
+          key={f.id}
+          variant="plain"
+          sx={{
+            width: 220,
+            bgcolor: '#1c1c1e',                        
+            color: 'white',                             
+            borderRadius: 2,                             
+            boxShadow: '0 8px 20px rgba(0,0,0,0.7)',     
+            overflow: 'hidden',                          
+          }}
+        >
+          <Box sx={{ width: '100%', height: '30vh', overflow: 'hidden' }}>
             <img
               src={`https://image.tmdb.org/t/p/w500${f.poster_path}`}
               alt={f.title}
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           </Box>
           <CardContent>
-          <Typography style={{color:"black"}} level="h4">{f.title}</Typography>
-          <Typography level="body2" sx={{ mb: 1 }}>Ocena: {f.vote_average}</Typography>
-            <Typography level="body2" sx={{ mb: 1 }}>Gatunki: {renderGenres(f.genre_ids)}</Typography>
-            <Typography level="body2" sx={{ fontSize: '0.875rem' }}>{f.overview}</Typography>
+            <Typography level="h4" sx={{ mb: 1 }}>
+              {f.title}
+            </Typography>
+            <Typography level="body2" sx={{ mb: 1 }}>
+              Ocena: {f.vote_average}
+            </Typography>
+            <Typography level="body2" sx={{ mb: 1 }}>
+              Gatunki: {renderGenres(f.genre_ids)}
+            </Typography>
+            <Typography level="body2" sx={{ fontSize: '0.875rem' }}>
+              {f.overview.length > 100
+                ? f.overview.slice(0, 100) + '…'
+                : f.overview}
+            </Typography>
           </CardContent>
         </Card>
       ))}
     </Box>
 
-    <Typography level="h4" sx={{ mb: 2 }}>Twoje rekomendacje</Typography>
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
-      {finals.map(f => (
-        <Card key={f.id} sx={{ width: 220, bg: '#1c1c1e', color: 'black' }}>
-          <Box sx={{ width: '100%', height: '30vh', overflow: 'hidden', borderRadius: 2 }}>
+    {/* Sekcja z polubionymi */}
+    <Typography level="h4" sx={{ mb: 2, color: 'white', textAlign:"center" }}>
+      Polubione przez Ciebie
+    </Typography>
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 3,
+        justifyContent: 'center',
+      }}
+    >
+      {favorites.map(f => (
+        <Card
+          key={f.id}
+          variant="plain"
+          sx={{
+            width: 220,
+            bgcolor: '#1c1c1e',
+            color: 'white',
+            borderRadius: 2,
+            boxShadow: '0 8px 20px rgba(0,0,0,0.7)',
+            overflow: 'hidden',
+          }}
+        >
+          <Box sx={{ width: '100%', height: '30vh', overflow: 'hidden' }}>
             <img
               src={`https://image.tmdb.org/t/p/w500${f.poster_path}`}
               alt={f.title}
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           </Box>
           <CardContent>
-            <Typography style={{color:"black"}} level="h4">{f.title}</Typography>
-            <Typography level="body2" sx={{ mb: 1 }}>Ocena: {f.vote_average}</Typography>
-            <Typography level="body2" sx={{ mb: 1 }}>Gatunki: {renderGenres(f.genre_ids)}</Typography>
-            <Typography level="body2" sx={{ fontSize: '0.875rem' }}>{f.overview}</Typography>
+            <Typography level="h4" sx={{ mb: 1 }}>
+              {f.title}
+            </Typography>
+            <Typography level="body2" sx={{ mb: 1 }}>
+              Ocena: {f.vote_average}
+            </Typography>
+            <Typography level="body2" sx={{ fontSize: '0.875rem' }}>
+              {renderGenres(f.genre_ids)}
+            </Typography>
           </CardContent>
         </Card>
       ))}
     </Box>
   </Box>
 )}
-      <Box
-        component="footer"
-        sx={{
-          textAlign: 'center',
-          py: 3,
-          px: 2,
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          mt: 'auto',
-        }}
-      >
-        <Typography level="h6" sx={{ color: 'white', mb: 1 }}>
-          O PROJEKCIE
-        </Typography>
-        <Typography level="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-          Autorzy: Wiktoria Sytniewska, Ada Konarska, Sebastian Szwajnoch, Adrian Muniak, Damian Chymkowski
-        </Typography>
-      </Box>
+
+<Box
+  component="footer"
+  sx={{
+    mt: 'auto',
+    pt: 6,
+    pb: 4,
+    px: { xs: 2, md: 8 },
+    backgroundColor: '#111',
+    color: 'rgba(255,255,255,0.8)',
+  }}
+>
+  <Box
+    sx={{
+      display: { xs: 'block', md: 'flex' },
+      justifyContent: 'space-between',
+      gap: 4,
+      mb: 4,
+    }}
+  >
+    {/* Kolumna 1 */}
+    <Box>
+      <Typography level="h6" sx={{ color: 'white', mb: 1 }}>
+        Filmder
+      </Typography>
+      <Typography component="ul" level="body2" sx={{ listStyle: 'none', p: 0, m: 0, lineHeight: 1.8 }}>
+        <li>O nas</li>
+        <li>API</li>
+        <li>GitHub</li>
+      </Typography>
+    </Box>
+
+    {/* Kolumna 2 */}
+    <Box>
+      <Typography level="h6" sx={{ color: 'white', mb: 1 }}>
+        Centrum pomocy
+      </Typography>
+      <Typography component="ul" level="body2" sx={{ listStyle: 'none', p: 0, m: 0, lineHeight: 1.8 }}>
+        <li>Pomoc dla użytkowników</li>
+        <li>Polityka plików “cookies”</li>
+        <li>Ustawienia plików “cookies”</li>
+      </Typography>
+    </Box>
+
+    {/* Kolumna 3 */}
+    <Box>
+      <Typography level="h6" sx={{ color: 'white', mb: 1 }}>
+        Regulaminy
+      </Typography>
+      <Typography component="ul" level="body2" sx={{ listStyle: 'none', p: 0, m: 0, lineHeight: 1.8 }}>
+        <li>Bezpieczeństwo</li>
+        <li>Regulamin</li>
+      </Typography>
+    </Box>
+
+    {/* Social Media */}
+    <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+      <Typography level="h6" sx={{ color: 'white', mb: 1 }}>
+        SOCIAL MEDIA
+      </Typography>
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+  <IconButton size="sm" sx={{ p: 0.5 }}>
+    <Box
+      component="img"
+      src={WhatsAppIcon}
+      alt="WhatsApp"
+      sx={{ width: 24, height: 24, display: 'block' }}
+    />
+  </IconButton>
+  <IconButton size="sm" sx={{ p: 0.5 }}>
+    <Box
+      component="img"
+      src={YouTubeIcon}
+      alt="YouTube"
+      sx={{ width: 24, height: 24, display: 'block' }}
+    />
+  </IconButton>
+  <IconButton size="sm" sx={{ p: 0.5 }}>
+    <Box
+      component="img"
+      src={InstagramIcon}
+      alt="Instagram"
+      sx={{ width: 24, height: 24, display: 'block' }}
+    />
+  </IconButton>
+  <IconButton size="sm" sx={{ p: 0.5 }}>
+    <Box
+      component="img"
+      src={FacebookIcon}
+      alt="Facebook"
+      sx={{ width: 24, height: 24, display: 'block' }}
+    />
+  </IconButton>
+  <IconButton size="sm" sx={{ p: 0.5 }}>
+    <Box
+      component="img"
+      src={LinkedInIcon}
+      alt="LinkedIn"
+      sx={{ width: 24, height: 24, display: 'block' }}
+    />
+  </IconButton>
+  <IconButton size="sm" sx={{ p: 0.5 }}>
+    <Box
+      component="img"
+      src={EmojiObjectsIcon}
+      alt="Behance"
+      sx={{ width: 24, height: 24, display: 'block' }}
+    />
+  </IconButton>
+</Box>
+    </Box>
+  </Box>
+
+  <Typography level="body2" sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
+    © {new Date().getFullYear()} Filmder. Wszelkie prawa zastrzeżone.
+  </Typography>
+</Box>
       </Sheet>
     </CssVarsProvider>
   );
