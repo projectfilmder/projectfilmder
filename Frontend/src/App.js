@@ -47,8 +47,8 @@ import Heart from './Heart.png'
 import Damian from './damian.jpg'
 import Adrian from './adrian.jpg'
 import Adrianna from './Ada.jpg'
-import Wiktoria from './Ada.jpg'
-import Sebastian from './Ada.jpg'
+import Wiktoria from './Witoria.jpg'
+import Sebastian from './Sebastian.jpg'
 const API_KEY = 'f933cff296149f7459a50c0384cada32';
 const API_BASE = 'https://filmder-9f342e7129fc.herokuapp.com'
 const PROVIDERS = [
@@ -440,31 +440,37 @@ const handleRegister = async (e) => {
   }, [screen]);
 
   useEffect(() => {
+    // Tylko w trybie gry pobieramy nowe filmy
     if (screen !== 'game') return;
-
+  
+    // Budujemy URL z aktualnymi filtrami i numerem strony
     let url = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}`
-            + `&language=pl-PL&include_adult=true&sort_by=popularity.desc&page=${page}`;
+      + `&language=pl-PL`
+      + `&include_adult=false`
+      + `&sort_by=popularity.desc`
+      + `&page=${page}`;
+  
     if (selectedGenres.length) {
       url += `&with_genres=${selectedGenres.join(',')}`;
     }
     if (selectedProviders.length) {
       url += `&with_watch_providers=${selectedProviders.join('|')}&watch_region=PL`;
     }
-
+  
     fetch(url)
       .then(res => res.json())
       .then(data => {
         const results = data.results || [];
-        if (results.length === 0) {
-          setNoResults(true);
-        } else {
-          setMovies(results);
-          setIndex(0);
-          setNoResults(false);
-        }
+        setMovies(results);
+        setIndex(0);                // resetujemy index na początek
+        setNoResults(results.length === 0);
       })
       .catch(() => {
-        setSnack({ open: true, message: 'Błąd sieci przy pobieraniu filmów', variant: 'danger' });
+        setSnack({
+          open: true,
+          message: 'Błąd sieci przy pobieraniu filmów',
+          variant: 'danger'
+        });
       });
   }, [screen, selectedGenres, selectedProviders, page]);
 
@@ -517,7 +523,7 @@ const handleRegister = async (e) => {
 
   useEffect(() => {
     if (screen !== 'game') return;
-    let url = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=pl-PL&include_adult=true&sort_by=popularity.desc&page=${page}`;
+    let url = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=pl-PL&include_adult=false&sort_by=popularity.desc&page=${page}`;
     if (selectedGenres.length) url += `&with_genres=${selectedGenres.join(',')}`;
     if (selectedProviders.length) url += `&with_watch_providers=${selectedProviders.join('|')}&watch_region=PL`;
     fetch(url)
@@ -621,15 +627,13 @@ const handleRegister = async (e) => {
   const nextMovie = (liked) => {
     const newFavs = liked ? [...favorites, current] : favorites;
     setFavorites(newFavs);
-
+  
     if (index + 1 >= movies.length) {
-      const nextPage = Math.floor(Math.random() * 1000) + 1;
-      setPage(nextPage);
+      setPage(prev => prev + 1);
     } else {
       setIndex(i => i + 1);
     }
   
-
     if (newFavs.length >= 5) {
       const count = {};
       newFavs.forEach(f =>
@@ -644,18 +648,21 @@ const handleRegister = async (e) => {
         .join(',');
   
       fetch(
-        `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}` +
-        `&language=pl-PL&include_adult=false&sort_by=popularity.desc&with_genres=${topGenres}`
+        `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}`
+        + `&language=pl-PL&include_adult=false&sort_by=popularity.desc`
+        + `&with_genres=${topGenres}`
       )
         .then(res => res.json())
         .then(data => {
           setFinals(data.results.slice(0, 3));
           setScreen('final');
         })
-        .catch(err => console.error('Błąd pobierania rekomendacji:', err));
+        .catch(err => {
+          console.error('Błąd pobierania rekomendacji:', err);
+          setSnack({ open: true, message: 'Nie udało się pobrać rekomendacji', variant: 'danger' });
+        });
     }
   };
-  
   
   
 
@@ -1528,7 +1535,7 @@ const handleRegister = async (e) => {
           { name: 'Adrian Muniak',      roles: ['Database Developer'],           img: Adrian },
           { name: 'Wiktoria Sytniewska',roles: ['Frontend Developer','(UI/UX)'], img: Wiktoria },
           { name: 'Adrianna Konarska',  roles: ['Copywriter'],                   img: Adrianna },
-          { name: 'Sebastian Szwajnoch',roles: ['FQA Tester'],                   img: Sebastian },
+          { name: 'Sebastian Szwajnoch',roles: ['QA Tester', "Smacznej Kawusi!"],                   img: Sebastian },
         ].map((member, i) => (
           <Box key={i} sx={{ textAlign: 'center', maxWidth: 200 }}>
             <Box
