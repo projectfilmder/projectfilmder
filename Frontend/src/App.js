@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { CssVarsProvider, extendTheme } from '@mui/joy/styles';
 import Sheet from '@mui/joy/Sheet';
 import Typography from '@mui/joy/Typography';
@@ -49,7 +49,9 @@ import Adrian from './adrian.jpg'
 import Adrianna from './Ada.jpg'
 import Wiktoria from './Witoria.jpg'
 import Sebastian from './Sebastian.jpg'
-const API_KEY = 'f933cff296149f7459a50c0384cada32';
+import SearchIcon from '@mui/icons-material/Search';
+
+const API_KEY = 'xxx';
 const API_BASE = 'https://filmder-9f342e7129fc.herokuapp.com'
 const PROVIDERS = [
   { id: 8, name: 'Netflix' },
@@ -108,10 +110,17 @@ function MediaContainer({ useTrailer, trailerKey, posterPath }) {
           title="Trailer"
           src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&mute=1`}
           allowFullScreen
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            border: 'none',
+          }}
         />
       ) : (
-        <>  
+        <>
           {posterPath && !imgLoaded && (
             <Box
               sx={{
@@ -133,7 +142,6 @@ function MediaContainer({ useTrailer, trailerKey, posterPath }) {
           {posterPath && (
             <img
               ref={imgRef}
-              key={`${posterPath}-${useTrailer}`}
               src={`https://image.tmdb.org/t/p/w500${posterPath}`}
               alt="Poster"
               onLoad={() => setImgLoaded(true)}
@@ -145,7 +153,8 @@ function MediaContainer({ useTrailer, trailerKey, posterPath }) {
                 width: '100%',
                 height: '100%',
                 objectFit: 'contain',
-                display: imgLoaded ? 'block' : 'none',
+                opacity: imgLoaded ? 1 : 0,
+                transition: 'opacity 0.3s ease',
               }}
             />
           )}
@@ -154,6 +163,7 @@ function MediaContainer({ useTrailer, trailerKey, posterPath }) {
     </Box>
   );
 }
+
 
 
 function FavoritesCarousel({ favorites }) {
@@ -235,7 +245,7 @@ function FavoritesCarousel({ favorites }) {
 }
 
 export default function App() {
-  const getRandomPage = () => Math.floor(Math.random() * 50) + 1;
+  const getRandomPage = () => Math.floor(Math.random() * 10) + 1;
   const [screen, setScreen] = useState('home');
   const [genres, setGenres] = useState({});
   const [selectedGenres, setSelectedGenres] = useState([]);
@@ -251,14 +261,17 @@ export default function App() {
   const [providerLinks, setProviderLinks] = useState({});
   const [noResults, setNoResults] = useState(false);
   const [page, setPage] = useState(() => getRandomPage());
-
+  const [totalPages, setTotalPages] = useState(null);
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirm, setRegConfirm] = useState('');
-
+  const [moviePool, setMoviePool] = useState([]);      
+  const [poolIndex, setPoolIndex] = useState(0);      
+  const [isPoolReady, setIsPoolReady] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
 const [loginPassword, setLoginPassword] = useState('');
+const [dislikedIds, setDislikedIds] = useState([]);
 
 const [likedDetails, setLikedDetails] = useState([]);
 
@@ -372,7 +385,61 @@ const handleRegister = async (e) => {
   }
 };
 
+const [dbQuery, setDbQuery] = useState('');
+const [dbSelectedGenres, setDbSelectedGenres] = useState([]);
+const [dbResults, setDbResults] = useState([]);
+const [dbPage, setDbPage] = useState(1);
+const [dbTotalPages, setDbTotalPages] = useState(1);
+const [dbLoading, setDbLoading] = useState(false);
+const [dbError, setDbError] = useState(null);
 
+const dbGenresList = useMemo(() => {
+  return Object.entries(genres).map(([id, name]) => ({
+    id: Number(id),
+    name
+  }));
+}, [genres]);
+
+useEffect(() => {
+  if (screen !== 'database') return; 
+  const fetchDbMovies = async () => {
+    setDbLoading(true);
+    setDbError(null);
+
+    try {
+      let url = '';
+      if (dbQuery.trim().length > 0) {
+        url = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&language=pl-PL`
+          + `&query=${encodeURIComponent(dbQuery)}`
+          + `&page=${dbPage}`;
+      }
+      else if (dbSelectedGenres.length > 0) {
+        const genreParam = dbSelectedGenres.join(',');
+        url = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=pl-PL`
+          + `&with_genres=${genreParam}`
+          + `&sort_by=popularity.desc`
+          + `&page=${dbPage}`;
+      }
+
+      else {
+        url = `https://api.themoviedb.org/3/movie/popular?api_key=${API_KEY}&language=pl-PL&page=${dbPage}`;
+      }
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setDbResults(data.results || []);
+      setDbTotalPages(data.total_pages || 1);
+    } catch (err) {
+      console.error('Błąd pobierania bazy filmów:', err);
+      setDbError('Nie udało się pobrać danych. Spróbuj ponownie.');
+    } finally {
+      setDbLoading(false);
+    }
+  };
+
+  fetchDbMovies();
+}, [screen, dbQuery, dbSelectedGenres, dbPage]);
   const genreRef = useRef(null);
   const scrollGenres = (direction) => {
     if (genreRef.current) {
@@ -439,64 +506,63 @@ const handleRegister = async (e) => {
     }
   }, [screen]);
 
-  useEffect(() => {
-    // Tylko w trybie gry pobieramy nowe filmy
-    if (screen !== 'game') return;
-  
-    // Budujemy URL z aktualnymi filtrami i numerem strony
-    let url = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}`
-      + `&language=pl-PL`
-      + `&include_adult=false`
-      + `&sort_by=popularity.desc`
-      + `&page=${page}`;
-  
-    if (selectedGenres.length) {
-      url += `&with_genres=${selectedGenres.join(',')}`;
-    }
-    if (selectedProviders.length) {
-      url += `&with_watch_providers=${selectedProviders.join('|')}&watch_region=PL`;
-    }
-  
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        const results = data.results || [];
-        setMovies(results);
-        setIndex(0);                // resetujemy index na początek
-        setNoResults(results.length === 0);
-      })
-      .catch(() => {
-        setSnack({
-          open: true,
-          message: 'Błąd sieci przy pobieraniu filmów',
-          variant: 'danger'
-        });
-      });
-  }, [screen, selectedGenres, selectedProviders, page]);
 
   const handleNoResults = () => {
     if (selectedProviders.length) {
-      setSnack({ open: true, message: 'Brak wyników – usuwam filtry platform i pobieram od nowa', variant: 'warning' });
+      setSnack({
+        open: true,
+        message: 'Brak wyników – usuwam filtry platform i pobieram od nowa',
+        variant: 'warning'
+      });
       setSelectedProviders([]);
       setPage(1);
+      return;
+    }
+  
 
-    } else if (selectedGenres.length) {
+    if (selectedGenres.length) {
+
+      if (page < totalPages) {
+        setSnack({
+          open: true,
+          message: 'Brak wyników – szukam kolejnej strony dla wybranych gatunków',
+          variant: 'warning'
+        });
+
+        setNoResults(false); 
+        setPage(prev => prev + 1);
+        return;
+      }
+  
       const allGenres = Object.keys(genres).map(Number);
       const remaining = allGenres.filter(g => !selectedGenres.includes(g));
+  
       if (remaining.length) {
         const rand = remaining[Math.floor(Math.random() * remaining.length)];
-        setSnack({ open: true, message: `Brak wyników – spróbujmy z gatunkiem: ${genres[rand]}`, variant: 'warning' });
+        setSnack({
+          open: true,
+          message: `Brak wyników na wszystkich stronach – spróbujmy z gatunkiem: ${genres[rand]}`,
+          variant: 'warning'
+        });
         setSelectedGenres([rand]);
         setPage(1);
-      } else {
-        setScreen('final');
+        return;
       }
+  
 
-    } else {
-      setSnack({ open: true, message: 'Brak dalszych propozycji – przechodzę do podsumowania', variant: 'info' });
       setScreen('final');
+      return;
     }
+  
+
+    setSnack({
+      open: true,
+      message: 'Brak dalszych propozycji – przechodzę do podsumowania',
+      variant: 'info'
+    });
+    setScreen('final');
   };
+  
 
   useEffect(() => {
     if (noResults) handleNoResults();
@@ -522,28 +588,106 @@ const handleRegister = async (e) => {
   }, [screen, finals]);
 
   useEffect(() => {
-    if (screen !== 'game') return;
-    let url = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=pl-PL&include_adult=false&sort_by=popularity.desc&page=${page}`;
-    if (selectedGenres.length) url += `&with_genres=${selectedGenres.join(',')}`;
-    if (selectedProviders.length) url += `&with_watch_providers=${selectedProviders.join('|')}&watch_region=PL`;
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        setMovies(data.results || []);
-        setIndex(0);
-      });
-  }, [screen, selectedGenres, selectedProviders, page]);
+    if (screen !== "game") return;
+  
+    if (!selectedGenres.length) {
+      setMoviePool([]);
+      setPoolIndex(0);
+      setIsPoolReady(false);
+      return;
+    }
+  
+    (async () => {
+      setIsPoolReady(false);
+      try {
+        const providerParam = selectedProviders.join("|");
+  
+        const fetchMovies = async (useRegion) => {
+          const promises = [];
+          selectedGenres.forEach((genreId) => {
+            for (let p = 1; p <= 3; p++) {
+              let url =
+                `https://api.themoviedb.org/3/discover/movie?` +
+                `api_key=${API_KEY}&language=pl-PL&include_adult=false` +
+                `&sort_by=popularity.desc&with_genres=${genreId}` +
+                `&with_watch_providers=${providerParam}` +
+                `&page=${p}`;
+              if (useRegion) {
+                url += `&watch_region=PL`;
+              }
+              promises.push(
+                fetch(url)
+                  .then((res) => {
+                    if (!res.ok) throw new Error("Błąd TMDB");
+                    return res.json();
+                  })
+                  .then((data) => data.results || [])
+              );
+            }
+          });
+          const pages = await Promise.all(promises);
+          return pages.flat();
+        };
+  
+        const dedupeAndFilter = (moviesArray) => {
+          const unique = [];
+          const seenIds = new Set();
+          moviesArray.forEach((m) => {
+            if (!seenIds.has(m.id) && !dislikedIds.includes(m.id)) {
+              unique.push(m);
+              seenIds.add(m.id);
+            }
+          });
+          return unique;
+        };
+  
+        let combined = await fetchMovies(true);
+        let filtered = dedupeAndFilter(combined);
+  
+        if (filtered.length === 0) {
+          const combinedNoRegion = await fetchMovies(false);
+          const filteredNoRegion = dedupeAndFilter(combinedNoRegion);
+          const shuffledNoRegion = shuffleArray(filteredNoRegion);
+          setMoviePool(shuffledNoRegion);
+          setPoolIndex(0);
+          setIsPoolReady(true);
+          return;
+        }
+  
+        const shuffled = shuffleArray(filtered);
+        setMoviePool(shuffled);
+        setPoolIndex(0);
+        setIsPoolReady(true);
+      } catch (err) {
+        console.error("Błąd budowania puli filmów:", err);
+        setSnack({ open: true, message: "Nie udało się załadować filmów", variant: "danger" });
+        setMoviePool([]);
+        setPoolIndex(0);
+        setIsPoolReady(true);
+      }
+    })();
+  }, [screen, selectedGenres, selectedProviders, dislikedIds]);
+  
 
   useEffect(() => {
-    if (!current) return;
-    fetch(`https://api.themoviedb.org/3/movie/${current.id}/videos?api_key=${API_KEY}&language=pl-PL`)
+    const cm = moviePool[poolIndex];
+    if (!cm) {
+      setTrailer(null);
+      return;
+    }
+  
+    setTrailer(null);
+  
+    fetch(`https://api.themoviedb.org/3/movie/${cm.id}/videos?api_key=${API_KEY}&language=pl-PL`)
       .then(res => res.json())
       .then(data => {
-        const t = (data.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube');
+        const t = (data.results || []).find(v => v.type === "Trailer" && v.site === "YouTube");
         setTrailer(t ? t.key : null);
+      })
+      .catch(() => {
+        setTrailer(null);
       });
-  }, [current]);
-
+  }, [moviePool, poolIndex]);
   useEffect(() => {
     if (!user?.likedMovies?.length) return;
     Promise.all(
@@ -624,6 +768,94 @@ const handleRegister = async (e) => {
 
   const renderGenres = ids => ids.map(id => genres[id]).join(', ');
 
+  const handleNext = (liked) => {
+    if (!isPoolReady) return;
+  
+    const currentMovie = moviePool[poolIndex];
+  
+    if (!liked && currentMovie) {
+      setDislikedIds(prev => [...prev, currentMovie.id]);
+    }
+  
+    let newFavorites = favorites;
+    if (liked && currentMovie) {
+      newFavorites = [...favorites, currentMovie];
+      setFavorites(newFavorites);
+    }
+  
+    if (newFavorites.length >= 5) {
+      (async () => {
+        try {
+          const recPromises = newFavorites.map(fav =>
+            fetch(
+              `https://api.themoviedb.org/3/movie/${fav.id}/recommendations?api_key=${API_KEY}&language=pl-PL`
+            )
+              .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+              })
+              .then(data => data.results || [])
+          );
+    
+          const recArrays = await Promise.all(recPromises);
+          const allRecs = recArrays.flat();
+    
+          const freqMap = {};
+          allRecs.forEach(r => {
+            if (!r || !r.id) return;
+            freqMap[r.id] = (freqMap[r.id] || 0) + 1;
+          });
+    
+          const uniqueRecsById = {};
+          allRecs.forEach(r => {
+            if (!uniqueRecsById[r.id]) {
+              uniqueRecsById[r.id] = r;
+            }
+          });
+    
+          const recsWithCount = Object.entries(freqMap).map(([id, count]) => {
+            return { movie: uniqueRecsById[id], count };
+          });
+    
+          recsWithCount.sort((a, b) => {
+            if (b.count !== a.count) return b.count - a.count;
+            return (b.movie.vote_average || 0) - (a.movie.vote_average || 0);
+          });
+    
+          const existingLikedIds = new Set(newFavorites.map(f => f.id));
+          const resultFiltered = recsWithCount
+            .map(r => r.movie)
+            .filter(m =>
+              !existingLikedIds.has(m.id) &&
+              !dislikedIds.includes(m.id)
+            );
+    
+          const filteredByGenre = resultFiltered.filter(m =>
+            m.genre_ids?.some(g => selectedGenres.includes(g))
+          );
+    
+          const top3 = filteredByGenre.slice(0, 3);
+          setFinals(top3);
+          setScreen("final");
+        } catch (err) {
+          console.error("Błąd pobierania rekomendacji final:", err);
+          setSnack({ open: true, message: "Nie udało się pobrać rekomendacji", variant: "danger" });
+          setScreen("final");
+        }
+      })();
+    
+      return;
+    }
+    
+    const nextIndex = poolIndex + 1;
+    if (nextIndex < moviePool.length) {
+      setPoolIndex(nextIndex);
+    } else {
+      setPoolIndex(0);
+    }
+  };
+
+  
   const nextMovie = (liked) => {
     const newFavs = liked ? [...favorites, current] : favorites;
     setFavorites(newFavs);
@@ -664,7 +896,14 @@ const handleRegister = async (e) => {
     }
   };
   
-  
+  const shuffleArray = (array) => {
+    const a = array.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
 
 
   const openInfo = async () => {
@@ -691,7 +930,26 @@ const handleRegister = async (e) => {
     }
   };
 
-
+  const handleFavorite = async (movieId) => {
+    if (!user) {
+      setSnack({ open: true, message: "Zaloguj się, aby dodać do ulubionych", variant: "warning" });
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/user/${user.id}/likes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movieId }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await fetchLikes(user.id);
+      setSnack({ open: true, message: "Dodano do ulubionych!", variant: "primary" });
+    } catch (err) {
+      console.error("Błąd zapisu ulubionego:", err);
+      setSnack({ open: true, message: "Nie udało się dodać do ulubionych", variant: "danger" });
+    }
+  };
+  
 
   const genreList = Object.entries(genres);
 
@@ -790,7 +1048,7 @@ const handleRegister = async (e) => {
       alt: 'Profil',
     },
     {
-      onClick: () => setScreen('game'),
+      onClick: () => setScreen('database'),
       src: film,
       alt: 'Tryb gry',
     },
@@ -1138,19 +1396,7 @@ const handleRegister = async (e) => {
         boxShadow: '0 8px 24px rgba(0,0,0,0.8)',
       }}
     >
-      <iframe
-        src="https://www.youtube.com/embed/VIDEO_ID?autoplay=0"
-        title="Demo"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          border: 'none',
-        }}
-        allowFullScreen
-      />
+
     </Box>
   </Box>
 )}
@@ -1168,21 +1414,22 @@ const handleRegister = async (e) => {
       py: 4,
     }}
   >
-    <Typography sx={{textAlign: 'center'}} level="h2">Wybierz 3 ulubione gatunki filmowe</Typography>
+    <Typography sx={{ textAlign: 'center' }} level="h2">
+      Wybierz ulubione gatunki filmowe
+    </Typography>
     <Typography
-  level="body2"
-  sx={{
-    display: { xs: 'none', md: 'block' },
-    mt: 1,
-    fontSize: { xs: '0.75rem', sm: '0.9rem' },
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-  }}
->
-  Korzystając ze strzałek — możesz się poruszać
-</Typography>
+      level="body2"
+      sx={{
+        display: { xs: 'none', md: 'block' },
+        mt: 1,
+        fontSize: { xs: '0.75rem', sm: '0.9rem' },
+        color: 'rgba(255,255,255,0.7)',
+        textAlign: 'center',
+      }}
+    >
+      Korzystając ze strzałek — możesz się poruszać
+    </Typography>
     <Box sx={{ position: 'relative', my: 3 }}>
-      {/* Strzałki schowane na mobile */}
       <IconButton
         onClick={() => scrollGenres(-1)}
         sx={{
@@ -1250,46 +1497,67 @@ const handleRegister = async (e) => {
       </IconButton>
     </Box>
 
-    <Typography sx={{textAlign:'center'}} level="h2">Wybierz dostępne dla siebie platformy streamingowe</Typography>
+    <Typography sx={{ textAlign: 'center' }} level="h2">
+      Wybierz dostępne dla siebie platformy streamingowe
+    </Typography>
     <Box
-  sx={{
-    bg: '#1c1c1e',
-    p: 2,
-    borderRadius: 2,
-    my: 3,
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-    gap: 2,
-    justifyItems: 'center',
-  }}
->
-  {PROVIDERS.map(p => (
-    <FormControl
-      key={p.id}
       sx={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 1,
-        width: '100%',
+        bg: '#1c1c1e',
+        p: 2,
+        borderRadius: 2,
+        my: 3,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+        gap: 2,
+        justifyItems: 'center',
       }}
     >
-      <Checkbox
-        label={p.name}
-        checked={selectedProviders.includes(p.id)}
-        onChange={() =>
-          setSelectedProviders(prev =>
-            prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
-          )
-        }
-        sx={{ color: 'white' }}
-      />
-    </FormControl>
-  ))}
-</Box>
+      {PROVIDERS.map(p => (
+        <FormControl
+          key={p.id}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 1,
+            width: '100%',
+          }}
+        >
+          <Checkbox
+            label={p.name}
+            checked={selectedProviders.includes(p.id)}
+            onChange={() =>
+              setSelectedProviders(prev =>
+                prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
+              )
+            }
+            sx={{ color: 'white' }}
+          />
+        </FormControl>
+      ))}
+    </Box>
 
     <Box sx={{ textAlign: 'center' }}>
-      <Button variant="solid" size="lg" onClick={() => setScreen('game')}>
+      <Button
+        variant="solid"
+        size="lg"
+        onClick={() => {
+          if (selectedGenres.length === 0) {
+            setSnack({
+              open: true,
+              message: 'Wybierz przynajmniej jeden gatunek!',
+              variant: 'warning',
+            });
+            return;
+          }
+          setScreen('game');
+        }}
+        disabled={selectedGenres.length === 0}
+        sx={{
+          opacity: selectedGenres.length === 0 ? 0.6 : 1,
+          cursor: selectedGenres.length === 0 ? 'not-allowed' : 'pointer',
+        }}
+      >
         PRZEJDŹ DALEJ
       </Button>
     </Box>
@@ -1297,170 +1565,543 @@ const handleRegister = async (e) => {
 )}
 
 
-        {screen==='game' && (
-          <Box sx={{ display:['block','flex'], gap:2, p:2, pt:{ xs:6, sm:2 } }}>
-            <Box sx={{ width:['100%','240px'] }}>
-              <Typography level="h4" sx={{ mb:1, textAlign:['center','left'] }}>Twoje typy</Typography>
-              <Box sx={{ display:{ xs:'block', sm:'none' } }}>
-                <FavoritesCarousel favorites={favorites} />
-              </Box>
-              <Box sx={{ display:{ xs:'none', sm:'grid' }, gridTemplateColumns:'1fr', gap:2, overflowY:'auto', maxHeight:'60vh', pr:1 }}>
-                {favorites.map(f => (
-                  <Card key={f.id} sx={{ backgroundColor:'rgba(28,28,30,0.8)' }}>
-                    <Box sx={{ width:'100%', height:'6rem', overflow:'hidden', borderRadius:1 }}>
-                      <img src={`https://image.tmdb.org/t/p/w500${f.poster_path}`} alt={f.title} style={{ width:'100%', height:'100%', objectFit:'contain' }} />
-                    </Box>
-                    <Typography level="body2" sx={{ color:'white', textAlign:'center', mt:1 }}>{f.title}</Typography>
-                  </Card>
-                ))}
-              </Box>
-            </Box>
 
-            <Box sx={{ flexGrow: 1 }}>
+{screen === 'game' && (
+  <Box sx={{ display: ['block', 'flex'], gap: 2, p: 2, pt: { xs: 6, sm: 2 } }}>
+
+    <Box sx={{ width: ['100%', '240px'] }}>
+      <Typography level="h4" sx={{ mb: 1, textAlign: ['center', 'left'] }}>
+        Twoje typy
+      </Typography>
+
+
+      <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
+        <FavoritesCarousel favorites={favorites} />
+      </Box>
+
+      <Box
+        sx={{
+          display: { xs: 'none', sm: 'grid' },
+          gridTemplateColumns: '1fr',
+          gap: 2,
+          overflowY: 'auto',
+          maxHeight: '60vh',
+          pr: 1,
+        }}
+      >
+        {favorites.map((f) => (
+          <Card key={f.id} sx={{ backgroundColor: 'rgba(28,28,30,0.8)' }}>
+            <Box sx={{ width: '100%', height: '6rem', overflow: 'hidden', borderRadius: 1 }}>
+              <img
+                src={`https://image.tmdb.org/t/p/w500${f.poster_path}`}
+                alt={f.title}
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            </Box>
+            <Typography level="body2" sx={{ color: 'white', textAlign: 'center', mt: 1 }}>
+              {f.title}
+            </Typography>
+          </Card>
+        ))}
+      </Box>
+    </Box>
+
+    <Box
+      sx={{
+        flexGrow: 1,
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '60vh',
+      }}
+    >
+      {!isPoolReady ? (
+
+        <CircularProgress color="primary" />
+      ) : moviePool.length === 0 ? (
+
+        <Typography level="body1" sx={{ color: 'white', textAlign: 'center' }}>
+          Brak filmów do wyświetlenia dla wybranych gatunków. Wybierz inne gatunki i spróbuj ponownie.
+        </Typography>
+      ) : (
+
+        (() => {
+          const currentMovie = moviePool[poolIndex];
+
+          return (
+            <Box sx={{ width: '100%', maxWidth: 500 }}>
+              {/* Przełącznik: trailer vs plakat */}
               <FormControl orientation="horizontal" sx={{ mb: 2, gap: 1 }}>
                 <FormLabel sx={{ color: 'white' }}>Trailer zamiast plakatu</FormLabel>
                 <Switch
                   checked={useTrailer}
-                  onChange={e => setUseTrailer(e.target.checked)}
+                  onChange={(e) => setUseTrailer(e.target.checked)}
                 />
               </FormControl>
 
+              {/* Karta z filmem */}
               <Card
-  sx={{
-    position: 'relative',
-    mx: 'auto',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    backdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255,255,255,0.2)',
-    borderRadius: '20px',
-    p: 2,
-    maxWidth: 500,
-    overflow: 'hidden',
-  }}
->
-  <MediaContainer useTrailer={useTrailer} trailerKey={trailer} posterPath={current?.poster_path} />
+                sx={{
+                  position: 'relative',
+                  mx: 'auto',
+                  backgroundColor: 'rgba(255,255,255,0.05)',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '20px',
+                  p: 2,
+                  overflow: 'hidden',
+                }}
+              >
+                <MediaContainer
+  key={currentMovie?.id} 
+  useTrailer={useTrailer}
+  trailerKey={trailer}
+  posterPath={currentMovie?.poster_path}
+/>
 
-  {current && likedIds.includes(current.id) && (
-  <Chip
-    startDecorator={<FavoriteIcon />}
-    size="md"
-    variant="soft"
-    color="success"
-    sx={{
-      position: 'absolute',
-      top: 12,
-      right: 12,
-      px: 1.5,
-      py: 0.5,
-      fontWeight: 'bold',
-      fontSize: '0.875rem',
-      backdropFilter: 'blur(10px)',
-      bgcolor: 'rgba(76,175,80,0.2)',      
-      color: 'red',  
-      boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
-    }}
-  >
-    Polubione
-  </Chip>
-)}
+                {currentMovie && likedIds.includes(currentMovie.id) && (
+                  <Chip
+                    startDecorator={<FavoriteIcon />}
+                    size="md"
+                    variant="soft"
+                    color="success"
+                    sx={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      px: 1.5,
+                      py: 0.5,
+                      fontWeight: 'bold',
+                      fontSize: '0.875rem',
+                      backdropFilter: 'blur(10px)',
+                      bgcolor: 'rgba(76,175,80,0.2)',
+                      color: 'red',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                    }}
+                  >
+                    Polubione
+                  </Chip>
+                )}
 
+                <CardContent>
+                  <Typography level="h3" sx={{ mb: 1, fontWeight: 'bold' }}>
+                    {currentMovie?.title}
+                  </Typography>
+                  <Typography level="body2" sx={{ color: 'white', mb: 1 }}>
+                    Ocena: {currentMovie?.vote_average} &middot; {currentMovie?.release_date}
+                  </Typography>
 
-  <CardContent>
-    <Typography level="h3" sx={{ mb: 1, fontWeight: 'bold' }}>
-      {current?.title}
-    </Typography>
-    <Typography level="body2" sx={{ color: 'white', mb: 1 }}>
-      Ocena: {current?.vote_average} · {current?.release_date}
-    </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
+                    <Button
+                      size="lg"
+                      variant="plain"
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        p: 0,
+                        bgcolor: '#4A3FFF',
+                        '&:hover': { bgcolor: '#3B30CC' },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      onClick={() => handleNext(false)}
+                    >
+                      <Box
+                        component="img"
+                        src={ThumbsDown}
+                        alt="Nie lubię"
+                        sx={{ width: 24, height: 24 }}
+                      />
+                    </Button>
 
-    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
-  {/* Thumbs Down */}
-  <Button
-    size="lg"
-    variant="plain"
-    sx={{
-      width: 56,
-      height: 56,
-      borderRadius: '50%',
-      p: 0,
-      bgcolor: '#4A3FFF',        
-      '&:hover': { bgcolor: '#3B30CC' },
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-    onClick={() => nextMovie(false)}
-  >
-    <Box
-      component="img"
-      src={ThumbsDown}
-      alt="Nie lubię"
-      sx={{ width: 24, height: 24 }}
-    />
-  </Button>
+                    <Button
+                      size="lg"
+                      variant="plain"
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        p: 0,
+                        bgcolor: '#8C3FED',
+                        '&:hover': { bgcolor: '#6B2DBB' },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      onClick={() => handleNext(true)}
+                    >
+                      <Box
+                        component="img"
+                        src={ThumbsUp}
+                        alt="Lubię"
+                        sx={{ width: 24, height: 24 }}
+                      />
+                    </Button>
 
-  {/* Thumbs Up */}
-  <Button
-    size="lg"
-    variant="plain"
-    sx={{
-      width: 56,
-      height: 56,
-      borderRadius: '50%',
-      p: 0,
-      bgcolor: '#8C3FED',      
-      '&:hover': { bgcolor: '#6B2DBB' },
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-    onClick={() => nextMovie(true)}
-  >
-    <Box
-      component="img"
-      src={ThumbsUp}
-      alt="Lubię"
-      sx={{ width: 24, height: 24 }}
-    />
-  </Button>
-
-  {/* Heart */}
-  <Button
-    size="lg"
-    variant="plain"
-    sx={{
-      width: 56,
-      height: 56,
-      borderRadius: '50%',
-      p: 0,
-      bgcolor: '#B71C1C',         
-      '&:hover': { bgcolor: '#8F1717' },
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-    onClick={openInfo}
-  >
-    <Box
-      component="img"
-      src={Heart}
-      alt="Ulubione"
-      sx={{ width: 24, height: 24 }}
-    />
-  </Button>
-</Box>
-  </CardContent>
-</Card>
+                    <Button
+                      size="lg"
+                      variant="plain"
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        p: 0,
+                        bgcolor: '#B71C1C',
+                        '&:hover': { bgcolor: '#8F1717' },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      onClick={() => handleFavorite(currentMovie.id)}
+                    >
+                      <Box
+                        component="img"
+                        src={Heart}
+                        alt="Ulubione"
+                        sx={{ width: 24, height: 24 }}
+                      />
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
 
               <Modal open={modalInfo} onClose={() => setModalInfo(false)}>
                 <ModalDialog>
-                  <IconButton onClick={() => setModalInfo(false)}><CloseRoundedIcon /></IconButton>
-                  {details && <Box sx={{ p: 2 }}><Typography level="h3" sx={{ mb: 1 }}>{details.title}</Typography><Typography>{details.overview}</Typography></Box>}
+                  <IconButton onClick={() => setModalInfo(false)}>
+                    <CloseRoundedIcon />
+                  </IconButton>
+                  {details && (
+                    <Box sx={{ p: 2 }}>
+                      <Typography level="h3" sx={{ mb: 1 }}>
+                        {details.title}
+                      </Typography>
+                      <Typography>{details.overview}</Typography>
+                    </Box>
+                  )}
                 </ModalDialog>
               </Modal>
             </Box>
+          );
+        })()
+      )}
+    </Box>
+  </Box>
+)}
+{screen === 'database' && (
+  <Box
+    sx={{
+      px: { xs: 2, md: 4 },
+      py: 4,
+
+      color: 'white',
+      minHeight: '100vh',
+    }}
+  >
+    {/* ← Nagłówek: przycisk powrotu + tytuł */}
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        mb: 3,
+      }}
+    >
+      <IconButton
+        onClick={() => {
+          setScreen('home');
+          setDbPage(1);
+          setDbQuery('');
+          setDbSelectedGenres([]);
+        }}
+        sx={{
+          color: 'white',
+          bgcolor: 'rgba(255,255,255,0.1)',
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
+          mr: 1,
+        }}
+      >
+        <ChevronLeftIcon />
+      </IconButton>
+
+      <Typography
+        level="h2"
+        sx={{
+          fontSize: { xs: '1.75rem', md: '2.25rem' },
+          fontWeight: 'bold',
+        }}
+      >
+        Baza Filmów
+      </Typography>
+    </Box>
+
+    {/* → KONTENER: wyszukiwarka + filtr gatunków */}
+    <Box
+      component="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setDbPage(1);
+      }}
+      sx={{
+        mb: 4,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+      }}
+    >
+      {/* 1) Pasek wyszukiwania */}
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        <Input
+          placeholder="Wpisz tytuł filmu..."
+          value={dbQuery}
+          onChange={(e) => setDbQuery(e.target.value)}
+          startDecorator={<SearchIcon sx={{ color: 'rgba(255,255,255,0.6)' }} />}
+          sx={{
+            flexGrow: 1,
+            bgcolor: 'rgba(255,255,255,0.05)',
+            color: 'white',
+            '& .MuiInput-input': { color: 'white' },
+            borderRadius: 1,
+          }}
+        />
+        <Button variant="solid" type="submit" sx={{ bgcolor: '#D32F2F' }}>
+          Szukaj
+        </Button>
+      </Box>
+
+      {/* 2) Nagłówek Filtr po gatunkach */}
+      <Typography
+        level="body2"
+        sx={{
+          fontSize: '0.875rem',
+          color: 'rgba(255,255,255,0.7)',
+        }}
+      >
+        Filtruj po gatunkach (max 3):
+      </Typography>
+
+      {/* 3) Lista gatunków w siatce */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr 1fr',
+            sm: 'repeat(4, 1fr)',
+            md: 'repeat(6, 1fr)',
+          },
+          gap: 1,
+        }}
+      >
+        {dbGenresList.map(({ id, name }) => (
+          <FormControl
+            key={id}
+            orientation="horizontal"
+            sx={{
+              alignItems: 'center',
+            }}
+          >
+            <Checkbox
+              size="sm"
+              checked={dbSelectedGenres.includes(id)}
+              onChange={() => {
+                setDbPage(1);
+                setDbSelectedGenres((prev) => {
+                  if (prev.includes(id)) return prev.filter((x) => x !== id);
+                  if (prev.length >= 3) return prev;
+                  return [...prev, id];
+                });
+              }}
+              sx={{
+                color: 'white',
+                '&.Mui-checked': { color: '#F48FB1' },
+              }}
+            />
+            <FormLabel
+              sx={{
+                color: 'rgba(255,255,255,0.8)',
+                fontSize: '0.825rem',
+              }}
+            >
+              {name}
+            </FormLabel>
+          </FormControl>
+        ))}
+      </Box>
+    </Box>
+
+    {/* → Sekcja: komunikaty (ładowanie / błąd) lub wyniki */}
+    {dbLoading ? (
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          py: 8,
+        }}
+      >
+        <CircularProgress color="neutral" />
+      </Box>
+    ) : dbError ? (
+      <Typography
+        level="body1"
+        color="danger"
+        sx={{
+          textAlign: 'center',
+          py: 8,
+          fontSize: '1rem',
+        }}
+      >
+        {dbError}
+      </Typography>
+    ) : (
+      <>
+        {/* → Brak wyników */}
+        {dbResults.length === 0 ? (
+          <Typography
+            level="body1"
+            sx={{
+              textAlign: 'center',
+              py: 8,
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '1rem',
+            }}
+          >
+            Brak wyników dla podanych kryteriów.
+          </Typography>
+        ) : (
+          /* → Siatka wyników */
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: '1fr 1fr',
+                md: 'repeat(3,1fr)',
+              },
+              gap: 3,
+            }}
+          >
+            {dbResults.map((movie) => (
+              <Card
+                key={movie.id}
+                variant="outlined"
+                sx={{
+                  bgcolor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                  },
+                }}
+              >
+                <Box
+                  component="img"
+                  src={
+                    movie.poster_path
+                      ? `https://image.tmdb.org/t/p/w300${movie.poster_path}`
+                      : 'https://via.placeholder.com/300x450?text=Brak+Zdjęcia'
+                  }
+                  alt={movie.title}
+                  sx={{
+                    width: '100%',
+                    height: '300px',
+                    objectFit: 'cover',
+                    bgcolor: 'rgba(255,255,255,0.05)',
+                  }}
+                />
+                <CardContent sx={{ py: 2, px: 2 }}>
+                  <Typography
+                    level="h5"
+                    sx={{
+                      mb: 0.5,
+                      fontWeight: 'bold',
+                      fontSize: '1.125rem',
+                      color: 'white',
+                    }}
+                  >
+                    {movie.title}
+                  </Typography>
+                  <Typography
+                    level="body2"
+                    sx={{
+                      color: 'rgba(255,255,255,0.7)',
+                      mb: 1,
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    {movie.release_date || '—'} &middot; ⭐ {movie.vote_average || '—'}
+                  </Typography>
+                  <Typography
+                    level="body3"
+                    noWrap
+                    sx={{
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: '0.8125rem',
+                    }}
+                  >
+                    {movie.overview || 'Brak opisu.'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            ))}
           </Box>
         )}
+
+        {/* → PAGINACJA (tylko gdy są wyniki) */}
+        {dbResults.length > 0 && (
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 2,
+              mt: 4,
+            }}
+          >
+            <Button
+              size="md"
+              variant="outlined"
+              startDecorator={<ChevronLeftIcon />}
+              disabled={dbPage <= 1}
+              sx={{
+                borderColor: 'rgba(255,255,255,0.3)',
+                color: 'white',
+                '&:disabled': { opacity: 0.4 },
+              }}
+              onClick={() => setDbPage((prev) => Math.max(prev - 1, 1))}
+            >
+              Poprzednia
+            </Button>
+
+            <Typography
+              level="body2"
+              sx={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.875rem' }}
+            >
+              Strona {dbPage} z {dbTotalPages}
+            </Typography>
+
+            <Button
+              size="md"
+              variant="outlined"
+              endDecorator={<ChevronRightIcon />}
+              disabled={dbPage >= dbTotalPages}
+              sx={{
+                borderColor: 'rgba(255,255,255,0.3)',
+                color: 'white',
+                '&:disabled': { opacity: 0.4 },
+              }}
+              onClick={() => setDbPage((prev) => Math.min(prev + 1, dbTotalPages))}
+            >
+              Następna
+            </Button>
+          </Box>
+        )}
+      </>
+    )}
+  </Box>
+)}
 
 {screen === 'info' && (
   <Box
@@ -1584,13 +2225,11 @@ const handleRegister = async (e) => {
 
 {screen === 'final' && (
   <Box sx={{ p: 4 }}>
-    {/* Nagłówek */}
     <Typography level="h2" sx={{ textAlign: 'center', mb: 4, color: 'white' }}>
       Podsumowanie
     </Typography>
 
-    {/* Sekcja z rekomendacjami */}
-    <Typography level="h4" sx={{ mb: 2, color: 'white', textAlign:"center" }}>
+    <Typography level="h4" sx={{ mb: 2, color: 'white', textAlign: 'center' }}>
       Propozycje na dziś!
     </Typography>
     <Box
@@ -1602,49 +2241,51 @@ const handleRegister = async (e) => {
         mb: 4,
       }}
     >
-      {finals.map(f => (
-        <Card
-          key={f.id}
-          variant="plain"
-          sx={{
-            width: 220,
-            bgcolor: '#1c1c1e',                        
-            color: 'white',                             
-            borderRadius: 2,                             
-            boxShadow: '0 8px 20px rgba(0,0,0,0.7)',     
-            overflow: 'hidden',                          
-          }}
-        >
-          <Box sx={{ width: '100%', height: '30vh', overflow: 'hidden' }}>
-            <img
-              src={`https://image.tmdb.org/t/p/w500${f.poster_path}`}
-              alt={f.title}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          </Box>
-          <CardContent>
-            <Typography level="h4" sx={{ mb: 1 }}>
-              {f.title}
-            </Typography>
-            <Typography level="body2" sx={{ mb: 1 }}>
-              Ocena: {f.vote_average}
-            </Typography>
-            <Typography level="body2" sx={{ mb: 1 }}>
-              Gatunki: {renderGenres(f.genre_ids)}
-            </Typography>
-            <Typography level="body2" sx={{ fontSize: '0.875rem' }}>
-              {f.overview.length > 100
-                ? f.overview.slice(0, 100) + '…'
-                : f.overview}
-            </Typography>
-          </CardContent>
-        </Card>
-      ))}
+      {finals
+                      .filter(f =>
+                        !dislikedIds.includes(f.id) &&
+                        f.genre_ids?.some(g => selectedGenres.includes(g))
+                      )
+        .map(f => (
+          <Card
+            key={f.id}
+            variant="plain"
+            sx={{
+              width: 220,
+              bgcolor: '#1c1c1e',
+              color: 'white',
+              borderRadius: 2,
+              boxShadow: '0 8px 20px rgba(0,0,0,0.7)',
+              overflow: 'hidden',
+            }}
+          >
+            <Box sx={{ width: '100%', height: '30vh', overflow: 'hidden' }}>
+              <img
+                src={`https://image.tmdb.org/t/p/w500${f.poster_path}`}
+                alt={f.title}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </Box>
+            <CardContent>
+              <Typography level="h4" sx={{ mb: 1 }}>
+                {f.title}
+              </Typography>
+              <Typography level="body2" sx={{ mb: 1 }}>
+                Ocena: {f.vote_average}
+              </Typography>
+              <Typography level="body2" sx={{ mb: 1 }}>
+                Gatunki: {renderGenres(f.genre_ids)}
+              </Typography>
+              <Typography level="body2" sx={{ fontSize: '0.875rem' }}>
+                {f.overview.length > 100 ? f.overview.slice(0, 100) + '…' : f.overview}
+              </Typography>
+            </CardContent>
+          </Card>
+        ))}
     </Box>
 
-    {/* Sekcja z polubionymi */}
-    <Typography level="h4" sx={{ mb: 2, color: 'white', textAlign:"center" }}>
-      Polubione przez Ciebie
+    <Typography level="h4" sx={{ mb: 2, color: 'white', textAlign: 'center' }}>
+      Twoje typy
     </Typography>
     <Box
       sx={{
@@ -1690,6 +2331,7 @@ const handleRegister = async (e) => {
     </Box>
   </Box>
 )}
+
 
 <Box
   component="footer"
